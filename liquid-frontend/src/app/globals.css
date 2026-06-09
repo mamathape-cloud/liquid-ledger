@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #1A1A2E;
+  --brand-navy: #1A1A2E;
+  --brand-red: #E94560;
+  --brand-amber: #F5A623;
+  --brand-dark: #16213E;
+  --brand-card: #0F3460;
+  --status-success: #27AE60;
+  --status-warning: #F39C12;
+  --status-error: #E74C3C;
+  --status-info: #2980B9;
+  --status-purple: #8E44AD;
+  --status-teal: #1ABC9C;
+  --ui-text-primary: #1A1A2E;
+  --ui-text-muted: #5A6478;
+  --ui-border: #E0E4EE;
+  --ui-row-alt: #F4F6FB;
+  --ui-code-bg: #F0F2F8;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-red: var(--brand-red);
+  --color-brand-amber: var(--brand-amber);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-card: var(--brand-card);
+  --color-status-success: var(--status-success);
+  --color-status-warning: var(--status-warning);
+  --color-status-error: var(--status-error);
+  --color-status-info: var(--status-info);
+  --color-status-purple: var(--status-purple);
+  --color-status-teal: var(--status-teal);
+  --color-ui-text-primary: var(--ui-text-primary);
+  --color-ui-text-muted: var(--ui-text-muted);
+  --color-ui-border: var(--ui-border);
+  --color-ui-row-alt: var(--ui-row-alt);
+  --color-ui-code-bg: var(--ui-code-bg);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), Inter, Arial, sans-serif;
+  font-size: 16px;
+}
