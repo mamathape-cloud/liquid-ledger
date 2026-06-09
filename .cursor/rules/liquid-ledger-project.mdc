@@ -1,0 +1,43 @@
+---
+description: Liquid Stage/Liquid Ledger project standards
+alwaysApply: true
+---
+
+# Liquid Ledger Project Standards
+
+Liquid Stage contains the Liquid Ledger expense management module. Use Next.js App Router + TypeScript + Tailwind on the frontend, Express.js + TypeScript + Node.js on the backend, MongoDB with Mongoose for persistence, S3 or Cloudinary for bill proofs, and JWT auth in httpOnly cookies.
+
+## Brand And Typography
+
+- Colors: primary `#1A1A2E`, accent `#E94560`, accent light `#F5A623`, dark bg `#16213E`, card bg `#0F3460`, success `#27AE60`, warning `#F39C12`, error `#E74C3C`, info `#2980B9`, muted text `#5A6478`, border `#E0E4EE`, alternate row `#F4F6FB`.
+- Use Inter for UI text with weights 400, 500, 600, 700, 800.
+- Use JetBrains Mono for monospace text and all amount fields/columns.
+
+## UI Rules
+
+- Every page has an H1 title, loading skeletons for data fetches, an API error boundary with retry, empty states for zero-result lists, and role-based UI that hides unavailable actions.
+- Format money in Indian locale with `₹`, for example `₹1,23,456.00`; format timestamps in IST as `DD MMM YYYY, hh:mm AM/PM`.
+- Buttons: one primary CTA per form, placed bottom-right; secondary/cancel is left of primary; destructive actions use `#E74C3C` and sit left; async submits show an in-button spinner; labels are action verbs such as `Submit Request`, `Approve`, `Reject`, `Disburse`, `Upload Bills`.
+- Do not use browser `alert()`, `confirm()`, or `prompt()`; use custom modal/popup components for success, failure, warning, and confirmation messages.
+- Delete actions require confirmation, and unsaved form changes must warn before modal close or navigation.
+
+## Forms, Uploads, Tables, And Mobile
+
+- Mark required fields with a red `*` after the label; show inline validation errors below fields, never in a toast.
+- Amount fields are numeric with `₹` prefix, two decimal places, and no negative values. Purpose/description is 10-300 chars with a live character count. Dates use date pickers, never free text.
+- File uploads accept PDF, JPG, PNG only; max 5 MB per file, max 10 files per request; show per-file progress, image thumbnails, PDF icons, and allow removal before final submit.
+- Tables use uppercase 12px semibold headers with navy bg `#1A1A2E` and white text, alternate `#FFFFFF`/`#F4F6FB` rows, right-aligned JetBrains Mono amounts, pill status badges, illustration empty states, 20 rows per page by default, and total count.
+- At 375px minimum width all pages must work; never show tables on mobile, use card layouts instead. Collapse sidebar to icon-only below 1024px and use a FAB for the primary mobile action.
+
+## Status Badges And Workflow
+
+- Badge style: `rounded-full`, padding `2px 10px`, 12px semibold uppercase.
+- Status colors: DRAFT `#5A6478`, PENDING `#F39C12`, APPROVED `#2980B9`, REJECTED `#E74C3C`, DISBURSED `#8E44AD`, PROOF_PENDING `#F5A623` with clock icon, AUDIT_PENDING `#1ABC9C`, SETTLED `#27AE60`, DISCREPANCY `#E94560`.
+- Enforce expense status transitions strictly with no skipping: `DRAFT -> PENDING -> APPROVED -> DISBURSED -> PROOF_PENDING -> AUDIT_PENDING -> SETTLED`; `APPROVED -> REJECTED`; `AUDIT_PENDING -> DISCREPANCY`.
+
+## Backend And Database
+
+- Express routes are prefixed with `/api/v1` and always return JSON shaped as `{ success: boolean, data: {}, message: string, error: string }`.
+- Use `async`/`await`, route errors through global error middleware, and validate request bodies before database access.
+- Never expose MongoDB `_id` directly; expose a virtual `id` field.
+- Mongoose schemas use `strict: true`, `timestamps: true`, enums for status fields, monetary values as `Number` with two-decimal precision, and `isDeleted: Boolean` soft deletes instead of hard deletes.
