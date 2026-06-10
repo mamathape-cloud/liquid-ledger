@@ -4,9 +4,6 @@ import jwt = require("jsonwebtoken");
 import Role = require("../models/Role");
 import User = require("../models/User");
 
-const TOKEN_COOKIE_NAME = "token";
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-
 function isValidPassword(password: string): boolean {
   return /^(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(password);
 }
@@ -86,11 +83,11 @@ const login: express.RequestHandler = async (req, res): Promise<void> => {
       { expiresIn: "7d" },
     );
 
-    res.cookie(TOKEN_COOKIE_NAME, token, {
+    res.cookie("token", token, {
       httpOnly: true,
-      sameSite: "strict",
-      secure: false,
-      maxAge: SEVEN_DAYS_MS,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     res.json({
@@ -204,10 +201,10 @@ const changePassword: express.RequestHandler = async (req, res): Promise<void> =
 };
 
 const logout: express.RequestHandler = (_req, res): void => {
-  res.clearCookie(TOKEN_COOKIE_NAME, {
+  res.clearCookie("token", {
     httpOnly: true,
-    sameSite: "strict",
-    secure: false,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
   });
 
   res.json({ success: true, message: "Logged out successfully" });
