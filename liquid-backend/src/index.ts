@@ -18,15 +18,36 @@ dotenv.config();
 const app = express();
 const helmetMiddleware = helmet.default;
 const port = process.env.PORT || 5000;
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  process.env.FRONTEND_URL,
+  process.env.CLIENT_URL,
+  process.env.CORS_ORIGIN,
+]
+  .flatMap((origin) => origin?.split(",") ?? [])
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const allowedOriginPatterns = [/^https:\/\/.*\.onrender\.com$/, /^https:\/\/.*\.vercel\.app$/];
+const corsOptions: cors.CorsOptions = {
+  origin(origin, callback) {
+    if (
+      !origin ||
+      allowedOrigins.includes(origin) ||
+      allowedOriginPatterns.some((pattern) => pattern.test(origin))
+    ) {
+      callback(null, true);
+      return;
+    }
 
-app.use(
-  cors({
-    origin: ["http://localhost:3000", "http://localhost:3001"],
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  }),
-);
+    callback(null, false);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+
+app.use(cors(corsOptions));
 app.use(helmetMiddleware());
 app.use(morgan("dev"));
 app.use(express.json());
@@ -46,6 +67,12 @@ app.use("/api/v1/expenses", expenseRoutes);
 app.use("/api/v1/roles", roleRoutes);
 app.use("/api/v1/upload", uploadRoutes);
 app.use("/api/v1/users", userRoutes);
+app.use("/auth", authRoutes);
+app.use("/events", eventRoutes);
+app.use("/expenses", expenseRoutes);
+app.use("/roles", roleRoutes);
+app.use("/upload", uploadRoutes);
+app.use("/users", userRoutes);
 
 async function startServer(): Promise<void> {
   try {
