@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   type ChangeEvent,
   type FormEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -21,7 +22,6 @@ import {
   rejectExpense,
   submitExpense,
   updateExpenseStatus,
-  uploadFiles,
   uploadProof,
 } from "@/lib/expenseApi";
 import {
@@ -126,7 +126,7 @@ function DetailItem({
   isMono = false,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   isMono?: boolean;
 }) {
   return (
@@ -684,11 +684,6 @@ export default function ExpenseDetailsPage() {
   const [actionError, setActionError] = useState("");
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
   const [isSubmittingDraft, setIsSubmittingDraft] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState<ExpenseStatus | "">("");
-  const [statusAmount, setStatusAmount] = useState("");
-  const [statusRemarks, setStatusRemarks] = useState("");
-  const [statusProofFiles, setStatusProofFiles] = useState<File[]>([]);
-  const [statusFieldError, setStatusFieldError] = useState("");
   const [successTitle, setSuccessTitle] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -735,29 +730,29 @@ export default function ExpenseDetailsPage() {
       expense.status === ExpenseStatus.DRAFT &&
       permissions.includes("expenses.create")
     ) {
-      nextOptions.push({ label: "Submitted", status: ExpenseStatus.PENDING });
+      nextOptions.push({ label: "Submit Request", status: ExpenseStatus.PENDING });
     }
 
     if (
       expense.status === ExpenseStatus.PENDING &&
       permissions.includes("expenses.approve")
     ) {
-      nextOptions.push({ label: "Approved", status: ExpenseStatus.APPROVED });
-      nextOptions.push({ label: "Rejected", status: ExpenseStatus.REJECTED });
+      nextOptions.push({ label: "Approve", status: ExpenseStatus.APPROVED });
+      nextOptions.push({ label: "Reject", status: ExpenseStatus.REJECTED });
     }
 
     if (
       expense.status === ExpenseStatus.APPROVED &&
       permissions.includes("expenses.disburse")
     ) {
-      nextOptions.push({ label: "Disbursed", status: ExpenseStatus.DISBURSED });
+      nextOptions.push({ label: "Disburse", status: ExpenseStatus.DISBURSED });
     }
 
     if (
       expense.status === ExpenseStatus.DISBURSED &&
       permissions.includes("expenses.disburse")
     ) {
-      nextOptions.push({ label: "Proof Pending", status: ExpenseStatus.PROOF_PENDING });
+      nextOptions.push({ label: "Mark Proof Pending", status: ExpenseStatus.PROOF_PENDING });
     }
 
     const canUploadProofForExpense =
@@ -768,15 +763,15 @@ export default function ExpenseDetailsPage() {
       expense.status === ExpenseStatus.PROOF_PENDING &&
       canUploadProofForExpense
     ) {
-      nextOptions.push({ label: "Audit Pending", status: ExpenseStatus.AUDIT_PENDING });
+      nextOptions.push({ label: "Upload Bills", status: ExpenseStatus.AUDIT_PENDING });
     }
 
     if (
       expense.status === ExpenseStatus.AUDIT_PENDING &&
       permissions.includes("expenses.audit")
     ) {
-      nextOptions.push({ label: "Settled", status: ExpenseStatus.SETTLED });
-      nextOptions.push({ label: "Discrepancy", status: ExpenseStatus.DISCREPANCY });
+      nextOptions.push({ label: "Mark Settled", status: ExpenseStatus.SETTLED });
+      nextOptions.push({ label: "Flag Discrepancy", status: ExpenseStatus.DISCREPANCY });
     }
 
     return nextOptions;
@@ -793,6 +788,8 @@ export default function ExpenseDetailsPage() {
     try {
       const updatedExpense = await submitExpense(expense.id);
       setExpense(updatedExpense);
+      setSuccessTitle(getStatusSuccessTitle(updatedExpense.status));
+      setSuccessMessage(`Next action: ${getHandoffMessage(updatedExpense.status)}.`);
     } catch (submitError) {
       setActionError(
         getErrorMessage(submitError, "Unable to submit expense. Please try again."),
@@ -810,78 +807,19 @@ export default function ExpenseDetailsPage() {
     setActiveAction({ type: action, auditStatus });
   }
 
-  async function handleStatusUpdate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!expense || !selectedStatus) {
-      setStatusFieldError("Select a status to update.");
+  async function handleQuickStatusUpdate(status: ExpenseStatus) {
+    if (!expense) {
       return;
     }
 
     setActionError("");
-    setStatusFieldError("");
     setIsSubmittingAction(true);
 
     try {
-      const payload: Parameters<typeof updateExpenseStatus>[1] = {
-        status: selectedStatus,
-        notes: statusRemarks.trim() || undefined,
-      };
-
-      if (selectedStatus === ExpenseStatus.APPROVED) {
-        const amount = Number(statusAmount);
-
-        if (!statusAmount.trim()) {
-          setStatusFieldError("Approved amount is required.");
-          return;
-        }
-
-        if (!Number.isFinite(amount) || amount <= 0) {
-          setStatusFieldError("Enter a valid approved amount greater than zero.");
-          return;
-        }
-
-        payload.approvedAmount = Number(amount.toFixed(2));
-      }
-
-      if (selectedStatus === ExpenseStatus.DISBURSED) {
-        const amount = Number(statusAmount);
-
-        if (!statusAmount.trim()) {
-          setStatusFieldError("Disbursed amount is required.");
-          return;
-        }
-
-        if (!Number.isFinite(amount) || amount <= 0) {
-          setStatusFieldError("Enter a valid disbursed amount greater than zero.");
-          return;
-        }
-
-        payload.disbursedAmount = Number(amount.toFixed(2));
-      }
-
-      if (selectedStatus === ExpenseStatus.REJECTED && !statusRemarks.trim()) {
-        setStatusFieldError("Remarks are required when rejecting.");
-        return;
-      }
-
-      if (selectedStatus === ExpenseStatus.AUDIT_PENDING) {
-        if (statusProofFiles.length === 0) {
-          setStatusFieldError("Upload at least one bill proof.");
-          return;
-        }
-
-        payload.proofUrls = await uploadFiles(statusProofFiles);
-      }
-
-      const updatedExpense = await updateExpenseStatus(expense.id, payload);
+      const updatedExpense = await updateExpenseStatus(expense.id, { status });
       setExpense(updatedExpense);
       setSuccessTitle(getStatusSuccessTitle(updatedExpense.status));
       setSuccessMessage(`Next action: ${getHandoffMessage(updatedExpense.status)}.`);
-      setSelectedStatus("");
-      setStatusAmount("");
-      setStatusRemarks("");
-      setStatusProofFiles([]);
     } catch (statusError) {
       setActionError(
         getErrorMessage(statusError, "Unable to update expense status. Please try again."),
@@ -889,6 +827,49 @@ export default function ExpenseDetailsPage() {
     } finally {
       setIsSubmittingAction(false);
     }
+  }
+
+  function handleStatusAction(status: ExpenseStatus) {
+    if (status === ExpenseStatus.PENDING) {
+      handleSubmitDraft();
+      return;
+    }
+
+    if (status === ExpenseStatus.APPROVED) {
+      openAction("approve");
+      return;
+    }
+
+    if (status === ExpenseStatus.REJECTED) {
+      openAction("reject");
+      return;
+    }
+
+    if (status === ExpenseStatus.DISBURSED) {
+      openAction("disburse");
+      return;
+    }
+
+    if (status === ExpenseStatus.PROOF_PENDING) {
+      handleQuickStatusUpdate(status);
+      return;
+    }
+
+    if (status === ExpenseStatus.AUDIT_PENDING) {
+      openAction("upload");
+      return;
+    }
+
+    if (status === ExpenseStatus.SETTLED || status === ExpenseStatus.DISCREPANCY) {
+      openAction("audit", status);
+    }
+  }
+
+  function handleActionComplete(updatedExpense: Expense) {
+    setExpense(updatedExpense);
+    setActiveAction(null);
+    setSuccessTitle(getStatusSuccessTitle(updatedExpense.status));
+    setSuccessMessage(`Next action: ${getHandoffMessage(updatedExpense.status)}.`);
   }
 
   return (
@@ -935,15 +916,47 @@ export default function ExpenseDetailsPage() {
                 </p>
               </div>
               <div className="self-start text-left sm:text-right">
-                <StatusBadge status={expense.status} className="px-4 py-2" />
-                <p className="mt-3 text-sm font-bold text-ui-text-muted">
+                <p className="text-sm font-bold text-ui-text-muted">
                   {getHandoffMessage(expense.status)}
                 </p>
+                {statusOptions.length > 0 ? (
+                  <div className="mt-4 flex flex-wrap gap-3 sm:justify-end">
+                    {statusOptions.map((option) => {
+                      const isReject = option.status === ExpenseStatus.REJECTED;
+                      const isBusy = isSubmittingAction || isSubmittingDraft;
+
+                      return (
+                        <button
+                          key={option.status}
+                          type="button"
+                          onClick={() => handleStatusAction(option.status)}
+                          disabled={isBusy}
+                          className={`inline-flex items-center justify-center rounded-lg px-5 py-3 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-70 ${
+                            isReject
+                              ? "bg-status-error hover:bg-status-error/90"
+                              : "bg-brand-red hover:bg-brand-red/90"
+                          }`}
+                        >
+                          {isBusy ? (
+                            <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                          ) : null}
+                          {isBusy ? "Updating..." : option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                {actionError ? (
+                  <p className="mt-4 rounded-lg bg-status-error/10 px-4 py-3 text-sm font-medium text-status-error">
+                    {actionError}
+                  </p>
+                ) : null}
               </div>
             </div>
 
             <div className="mt-6 grid gap-4 md:grid-cols-3">
               <DetailItem label="Category" value={categoryLabels[expense.category]} />
+              <DetailItem label="Submitted By" value={expense.employeeId.name} />
               <DetailItem label="Expense ID" value={expense.displayId || expense.id} isMono />
               <DetailItem
                 label="Requested Amount"
@@ -960,20 +973,14 @@ export default function ExpenseDetailsPage() {
                 value={formatMoney(expense.disbursedAmount)}
                 isMono
               />
-              <DetailItem label="Submitted By" value={expense.employeeId.name} />
-              <DetailItem label="Email" value={expense.employeeId.email} isMono />
               <DetailItem
                 label="Required Date"
                 value={formatDate(expense.requiredDate || expense.createdAt)}
               />
-              <DetailItem label="Created" value={formatDate(expense.createdAt)} />
-              <DetailItem label="Updated" value={formatDate(expense.updatedAt)} />
-              <DetailItem label="Disbursed At" value={formatDate(expense.disbursedAt)} />
               <DetailItem
-                label="Proof Submitted At"
-                value={formatDate(expense.proofSubmittedAt)}
+                label="Status"
+                value={<StatusBadge status={expense.status} className="px-3 py-1" />}
               />
-              <DetailItem label="Settled At" value={formatDate(expense.settledAt)} />
             </div>
 
             <div className="mt-6 grid gap-4 lg:grid-cols-2">
@@ -999,17 +1006,28 @@ export default function ExpenseDetailsPage() {
               <h2 className="text-xs font-bold uppercase tracking-wide text-ui-text-muted">
                 Attachments
               </h2>
-              {expense.attachmentUrls?.length > 0 ? (
+              {(expense.attachmentUrls?.length || 0) + expense.proofUrls.length > 0 ? (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {expense.attachmentUrls.map((attachmentUrl, index) => (
+                  {expense.attachmentUrls?.map((attachmentUrl, index) => (
                     <a
-                      key={attachmentUrl}
+                      key={`attachment-${attachmentUrl}`}
                       href={getFileUrl(attachmentUrl)}
                       target="_blank"
                       rel="noreferrer"
                       className="rounded-lg border border-ui-border bg-white px-3 py-2 text-sm font-bold text-brand-red transition hover:border-brand-red"
                     >
                       Attachment {index + 1}
+                    </a>
+                  ))}
+                  {expense.proofUrls.map((proofUrl, index) => (
+                    <a
+                      key={`proof-${proofUrl}`}
+                      href={getFileUrl(proofUrl)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-lg border border-ui-border bg-white px-3 py-2 text-sm font-bold text-brand-red transition hover:border-brand-red"
+                    >
+                      Attachment {(expense.attachmentUrls?.length || 0) + index + 1}
                     </a>
                   ))}
                 </div>
@@ -1019,193 +1037,29 @@ export default function ExpenseDetailsPage() {
                 </p>
               )}
             </section>
-
-            <section className="mt-6 rounded-xl bg-ui-row-alt p-4">
-              <h2 className="text-xs font-bold uppercase tracking-wide text-ui-text-muted">
-                Proofs
-              </h2>
-              {expense.proofUrls.length > 0 ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {expense.proofUrls.map((proofUrl, index) => (
-                    <a
-                      key={proofUrl}
-                      href={getFileUrl(proofUrl)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-lg border border-ui-border bg-white px-3 py-2 text-sm font-bold text-brand-red transition hover:border-brand-red"
-                    >
-                      Proof {index + 1}
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-2 text-sm font-semibold text-ui-text-muted">
-                  No bill proofs uploaded yet.
-                </p>
-              )}
-            </section>
           </section>
 
           <Timeline expense={expense} />
-
-          <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-ui-border/70 sm:p-6">
-            <h2 className="text-xl font-extrabold text-ui-text-primary">Actions</h2>
-            <p className="mt-2 text-sm font-bold text-ui-text-muted">
-              {getHandoffMessage(expense.status)}
-            </p>
-            {actionError ? (
-              <p className="mt-4 rounded-lg bg-status-error/10 px-4 py-3 text-sm font-medium text-status-error">
-                {actionError}
-              </p>
-            ) : null}
-            {statusOptions.length > 0 ? (
-              <form onSubmit={handleStatusUpdate} className="mt-5 grid gap-4">
-                <div>
-                  <label
-                    htmlFor="expenseStatusUpdate"
-                    className="mb-2 block text-sm font-semibold text-ui-text-primary"
-                  >
-                    Move Status <span className="text-status-error">*</span>
-                  </label>
-                  <select
-                    id="expenseStatusUpdate"
-                    value={selectedStatus}
-                    onChange={(event) => {
-                      const nextStatus = event.target.value as ExpenseStatus | "";
-                      setSelectedStatus(nextStatus);
-                      setStatusFieldError("");
-                      setStatusAmount("");
-                      setStatusRemarks("");
-                      setStatusProofFiles([]);
-                    }}
-                    className="w-full rounded-lg border border-ui-border px-4 py-3 text-ui-text-primary outline-none transition focus:border-brand-red focus:ring-2 focus:ring-brand-red/20"
-                  >
-                    <option value="">Select next status</option>
-                    {statusOptions.map((option) => (
-                      <option key={option.status} value={option.status}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {[ExpenseStatus.APPROVED, ExpenseStatus.DISBURSED].includes(
-                  selectedStatus as ExpenseStatus,
-                ) ? (
-                  <div>
-                    <label
-                      htmlFor="statusAmount"
-                      className="mb-2 block text-sm font-semibold text-ui-text-primary"
-                    >
-                      {selectedStatus === ExpenseStatus.APPROVED
-                        ? "Approved Amount"
-                        : "Disbursed Amount"}{" "}
-                      <span className="text-status-error">*</span>
-                    </label>
-                    <div
-                      className={`flex rounded-lg border focus-within:border-brand-red focus-within:ring-2 focus-within:ring-brand-red/20 ${
-                        statusFieldError.toLowerCase().includes("amount")
-                          ? "border-status-error"
-                          : "border-ui-border"
-                      }`}
-                    >
-                      <span className="flex items-center rounded-l-lg bg-ui-row-alt px-4 font-mono text-sm font-bold text-ui-text-muted">
-                        ₹
-                      </span>
-                      <input
-                        id="statusAmount"
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={statusAmount}
-                        onChange={(event) => setStatusAmount(event.target.value)}
-                        className="w-full rounded-r-lg px-4 py-3 font-mono text-ui-text-primary outline-none"
-                        placeholder={
-                          selectedStatus === ExpenseStatus.APPROVED
-                            ? String(expense.requestedAmount)
-                            : String(expense.approvedAmount || expense.requestedAmount)
-                        }
-                      />
-                    </div>
-                  </div>
-                ) : null}
-
-                {selectedStatus === ExpenseStatus.AUDIT_PENDING ? (
-                  <div>
-                    <label
-                      htmlFor="statusProofFiles"
-                      className="mb-2 block text-sm font-semibold text-ui-text-primary"
-                    >
-                      Bill Proofs <span className="text-status-error">*</span>
-                    </label>
-                    <input
-                      id="statusProofFiles"
-                      type="file"
-                      multiple
-                      accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-                      onChange={(event) => {
-                        const selectedFiles = Array.from(event.target.files || []);
-                        setStatusFieldError("");
-
-                        const invalidFile = selectedFiles.find(
-                          (file) =>
-                            !allowedProofTypes.includes(file.type) ||
-                            file.size > maxProofSize,
-                        );
-
-                        if (selectedFiles.length > maxProofFiles) {
-                          setStatusProofFiles([]);
-                          setStatusFieldError("Upload a maximum of 10 files.");
-                          return;
-                        }
-
-                        if (invalidFile) {
-                          setStatusProofFiles([]);
-                          setStatusFieldError(
-                            "Each file must be a PDF, JPG, or PNG and 5 MB or smaller.",
-                          );
-                          return;
-                        }
-
-                        setStatusProofFiles(selectedFiles);
-                      }}
-                      className="w-full rounded-lg border border-ui-border px-4 py-3 text-sm font-semibold text-ui-text-primary outline-none file:mr-4 file:rounded-lg file:border-0 file:bg-brand-red file:px-4 file:py-2 file:text-sm file:font-bold file:text-white"
-                    />
-                  </div>
-                ) : null}
-
-                {[ExpenseStatus.REJECTED, ExpenseStatus.APPROVED, ExpenseStatus.SETTLED, ExpenseStatus.DISCREPANCY].includes(
-                  selectedStatus as ExpenseStatus,
-                ) ? (
-                  <NotesField value={statusRemarks} onChange={setStatusRemarks} />
-                ) : null}
-
-                {statusFieldError ? (
-                  <p className="rounded-lg bg-status-error/10 px-4 py-3 text-sm font-medium text-status-error">
-                    {statusFieldError}
-                  </p>
-                ) : null}
-
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={isSubmittingAction}
-                    className="inline-flex items-center justify-center rounded-lg bg-brand-red px-5 py-3 text-sm font-bold text-white transition hover:bg-brand-red/90 disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    {isSubmittingAction ? (
-                      <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                    ) : null}
-                    {isSubmittingAction ? "Updating..." : "Submit"}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <p className="mt-5 text-sm font-semibold text-ui-text-muted">
-                No actions are available for your permissions and this status.
-              </p>
-            )}
-          </section>
         </section>
+      ) : null}
+
+      {expense && activeAction ? (
+        <ActionModal
+          action={activeAction.type}
+          expense={expense}
+          initialAuditStatus={activeAction.auditStatus}
+          error={actionError}
+          isSubmitting={isSubmittingAction}
+          onCancel={() => {
+            if (!isSubmittingAction) {
+              setActiveAction(null);
+              setActionError("");
+            }
+          }}
+          onSubmit={handleActionComplete}
+          onError={setActionError}
+          onSubmittingChange={setIsSubmittingAction}
+        />
       ) : null}
 
       {successMessage ? (
